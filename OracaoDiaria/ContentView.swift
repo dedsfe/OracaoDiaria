@@ -39,41 +39,46 @@ private struct MainTabRoot: View {
     private let friends = PrayerFriend.samples
 
     var body: some View {
-        ZStack {
-            TabView(selection: $selectedTab) {
-                StreakTabView(store: prayerProgress)
-                    .tabItem {
-                        Label("Streak", systemImage: "flame.fill")
-                    }
-                    .tag(MainAppTab.streak)
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                TabView(selection: $selectedTab) {
+                    StreakTabView(store: prayerProgress)
+                        .tabItem {
+                            Label("Streak", systemImage: "flame.fill")
+                        }
+                        .tag(MainAppTab.streak)
 
-                PrayerTimerHomeView()
-                    .tabItem {
-                        Label("Orar", systemImage: "timer")
-                    }
-                    .tag(MainAppTab.orar)
+                    PrayerTimerHomeView()
+                        .tabItem {
+                            Label("Orar", systemImage: "timer")
+                        }
+                        .tag(MainAppTab.orar)
 
-                FriendsTabView(friends: friends)
-                    .tabItem {
-                        Label("Amigos", systemImage: "person.2.fill")
-                    }
-                    .tag(MainAppTab.friends)
-            }
-            .tabViewBottomAccessory(isEnabled: selectedTab == .orar) {
-                PrayerStartAccessoryButton(
-                    title: "Iniciar Minha Oração 🙏🏻",
-                    action: prayerProgress.handlePrimaryAction
-                )
-            }
-
-            if prayerProgress.showsCompletionPopup {
-                PrayerCompletionPopup {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        prayerProgress.dismissCompletionPopup()
-                    }
+                    FriendsTabView(friends: friends)
+                        .tabItem {
+                            Label("Amigos", systemImage: "person.2.fill")
+                        }
+                        .tag(MainAppTab.friends)
                 }
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                .zIndex(10)
+
+                if selectedTab == .orar {
+                    PrayerStartAccessoryButton(
+                        title: "Iniciar Minha Oração 🙏🏻",
+                        action: prayerProgress.handlePrimaryAction
+                    )
+                    .padding(.bottom, proxy.safeAreaInsets.bottom + 64)
+                    .zIndex(2)
+                }
+
+                if prayerProgress.showsCompletionPopup {
+                    PrayerCompletionPopup {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            prayerProgress.dismissCompletionPopup()
+                        }
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    .zIndex(10)
+                }
             }
         }
         .onChange(of: selectedTab) {

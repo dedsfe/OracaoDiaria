@@ -12,10 +12,12 @@ import UIKit
 
 struct PrayerIdleHomeView: View {
     var body: some View {
-        PrayerWallpaperImage(name: "backgroundhome")
-            .background(Color.black)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea()
+        GeometryReader { proxy in
+            PrayerWallpaperImage(name: "backgroundhome")
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .background(Color.black)
+                .ignoresSafeArea()
+        }
     }
 }
 
@@ -29,14 +31,17 @@ struct PrayerStartAccessoryButton: View {
                 .font(.system(size: 22, weight: .semibold, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.80)
+                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 18)
         }
-        .buttonStyle(.glass)
-        .controlSize(.extraLarge)
-        .frame(maxWidth: 420)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
+        .buttonStyle(.glassProminent)
+        .buttonBorderShape(.capsule)
+        .tint(.black.opacity(0.72))
+        .frame(maxWidth: 430)
+        .padding(.horizontal, 48)
+        .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 10)
     }
 }
 
@@ -49,12 +54,13 @@ private struct PrayerWallpaperImage: View {
                 Image(uiImage: image)
                     .renderingMode(.original)
                     .resizable()
-                    .scaledToFill()
+                    .aspectRatio(contentMode: .fill)
+                    .scaleEffect(1.015)
             } else {
                 Color.black
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .clipped()
         .ignoresSafeArea()
     }
