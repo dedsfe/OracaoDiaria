@@ -36,9 +36,8 @@ struct PrayerStartAccessoryButton: View {
                 .padding(.horizontal, 30)
                 .padding(.vertical, 18)
         }
-        .buttonStyle(.glassProminent)
+        .buttonStyle(.glass)
         .buttonBorderShape(.capsule)
-        .tint(.black.opacity(0.72))
         .frame(maxWidth: 430)
         .padding(.horizontal, 48)
         .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 10)
