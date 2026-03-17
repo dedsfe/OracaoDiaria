@@ -124,6 +124,8 @@ final class OnboardingViewModel: ObservableObject {
             await notificationAccess.clearMorningReminder()
         }
 
+        PrayerProgressStore.savePreferredDurationMinutes(data.prayerDurationMinutes)
+
         return data.trimmedName
     }
 

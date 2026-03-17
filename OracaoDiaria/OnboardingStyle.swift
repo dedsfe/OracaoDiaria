@@ -50,9 +50,9 @@ struct OnboardingBackground: View {
 
             LinearGradient(
                 colors: [
-                    Color.black.opacity(0.10),
-                    Color.clear,
-                    Color.black.opacity(0.18),
+                    Color.black.opacity(0.44),
+                    Color.black.opacity(0.36),
+                    Color.black.opacity(0.50),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -60,7 +60,7 @@ struct OnboardingBackground: View {
             .ignoresSafeArea()
 
             Rectangle()
-                .fill(Color.white.opacity(0.05))
+                .fill(Color.white.opacity(0.02))
                 .ignoresSafeArea()
         }
         .ignoresSafeArea(.all, edges: .all)
@@ -129,20 +129,26 @@ enum CardPose {
 
 struct StitchedCard<Content: View>: View {
     private let pose: CardPose
+    private let maxWidth: CGFloat?
+    private let contentAlignment: Alignment
     @ViewBuilder private let content: Content
 
     init(
         pose: CardPose = .centered,
+        maxWidth: CGFloat? = nil,
+        contentAlignment: Alignment = .leading,
         @ViewBuilder content: () -> Content
     ) {
         self.pose = pose
+        self.maxWidth = maxWidth
+        self.contentAlignment = contentAlignment
         self.content = content()
     }
 
     var body: some View {
         content
             .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: maxWidth ?? .infinity, alignment: contentAlignment)
             .background(
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .fill(Color.white.opacity(0.96))
@@ -201,7 +207,7 @@ private enum OnboardingHapticCache {
     static let notification = UINotificationFeedbackGenerator()
 }
 
-private enum OnboardingAssetCache {
+enum OnboardingAssetCache {
     static let backgroundImage: Image = {
         if
             let path = Bundle.main.path(forResource: "backgroundimg", ofType: "png"),

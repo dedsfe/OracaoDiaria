@@ -13,18 +13,24 @@ import UIKit
 #endif
 
 struct OnboardingFlowView: View {
+    private let maxContentWidth: CGFloat = 430
     @Binding var didCompleteOnboarding: Bool
     @Binding var savedName: String
+    private let showsLayoutDebug: Bool
 
     @StateObject private var viewModel: OnboardingViewModel
+    @State private var immersiveStepCompletion: Set<Int> = []
+    @State private var immersiveStepProgress: [Int: Double] = [:]
 
     @MainActor
     init(
         didCompleteOnboarding: Binding<Bool>,
-        savedName: Binding<String>
+        savedName: Binding<String>,
+        showsLayoutDebug: Bool = false
     ) {
         self._didCompleteOnboarding = didCompleteOnboarding
         self._savedName = savedName
+        self.showsLayoutDebug = showsLayoutDebug
         let screenTimeAccess = ScreenTimeAccessController()
         let notificationAccess = NotificationAccessController()
         self._viewModel = StateObject(
@@ -36,7 +42,14 @@ struct OnboardingFlowView: View {
     }
 
     var body: some View {
-        ZStack {
+        let horizontalInset = viewModel.isIntroStep ? 20.0 : 24.0
+#if canImport(UIKit)
+        let maxColumnWidth = min(self.maxContentWidth, UIScreen.main.bounds.width - (horizontalInset * 2))
+#else
+        let maxColumnWidth = self.maxContentWidth
+#endif
+
+        ZStack(alignment: .topLeading) {
             if viewModel.isIntroStep {
                 Color.black
                     .ignoresSafeArea()
@@ -45,23 +58,24 @@ struct OnboardingFlowView: View {
             }
 
             VStack(alignment: .leading, spacing: 16) {
-                if viewModel.showsProgressHeader {
+                if viewModel.showsProgressHeader && !requiresImmersiveCompletion(for: viewModel.stepIndex) {
                     progressHeader
                 }
 
-                ZStack {
+                ZStack(alignment: .topLeading) {
                     currentStepView
                         .id(viewModel.stepIndex)
                         .transition(stepTransition)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .frame(maxWidth: CGFloat.infinity, maxHeight: CGFloat.infinity, alignment: Alignment.topLeading)
 
                 if viewModel.showsGlobalNavigation {
                     navigationButtons
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.horizontal, viewModel.isIntroStep ? 20 : 24)
+            .frame(maxWidth: maxColumnWidth, maxHeight: CGFloat.infinity, alignment: Alignment.topLeading)
+            .frame(maxWidth: CGFloat.infinity, maxHeight: CGFloat.infinity, alignment: Alignment.top)
+            .padding(.horizontal, horizontalInset)
             .padding(.top, 16)
             .padding(.bottom, 24)
             .allowsHitTesting(!viewModel.showsCommitmentCelebration)
@@ -94,15 +108,33 @@ struct OnboardingFlowView: View {
                 viewModel.goForward()
             }
         case 1:
-            Step2ProblemView()
+            Step2ProblemView(
+                isComplete: immersiveCompletionBinding(for: 1),
+                progress: immersiveProgressBinding(for: 1)
+            )
         case 2:
-            Step3PromiseView()
+            Step3PromiseView(
+                isComplete: immersiveCompletionBinding(for: 2),
+                progress: immersiveProgressBinding(for: 2)
+            )
         case 3:
-            Step3NameView(data: $viewModel.data)
+            Step3NameView(
+                data: $viewModel.data,
+                isComplete: immersiveCompletionBinding(for: 3),
+                progress: immersiveProgressBinding(for: 3)
+            )
         case 4:
-            Step4AgeView(data: $viewModel.data)
+            Step4AgeView(
+                data: $viewModel.data,
+                isComplete: immersiveCompletionBinding(for: 4),
+                progress: immersiveProgressBinding(for: 4)
+            )
         case 5:
-            Step5PhoneUsageView(screenTimeAccess: viewModel.screenTimeAccess)
+            Step5PhoneUsageView(
+                screenTimeAccess: viewModel.screenTimeAccess,
+                isComplete: immersiveCompletionBinding(for: 5),
+                progress: immersiveProgressBinding(for: 5)
+            )
         case 6:
             AnalyzeProfileScreen {
                 viewModel.goForward()
@@ -137,15 +169,11 @@ struct OnboardingFlowView: View {
     private var progressHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Etapa \(viewModel.progressStepNumber) de \(viewModel.progressStageCount)")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.95))
-
                 Spacer()
 
-                Text("\(Int((viewModel.progressValue * 100).rounded()))%")
+                Text("\(Int((headerProgressValue * 100).rounded()))%")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(.white.opacity(0.82))
             }
 
             GeometryReader { proxy in
@@ -154,11 +182,13 @@ struct OnboardingFlowView: View {
                         .fill(Color.white.opacity(0.68))
                     Capsule()
                         .fill(Color.white)
-                        .frame(width: proxy.size.width * viewModel.progressValue)
+                        .frame(width: proxy.size.width * max(headerProgressValue, 0.02))
                 }
             }
             .frame(height: 14)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.spring(response: 0.38, dampingFraction: 0.86), value: headerProgressValue)
         .animation(.spring(response: 0.45, dampingFraction: 0.84), value: viewModel.stepIndex)
     }
 
@@ -166,13 +196,13 @@ struct OnboardingFlowView: View {
         switch viewModel.navigationDirection {
         case .forward:
             return .asymmetric(
-                insertion: .move(edge: .trailing).combined(with: .opacity),
-                removal: .move(edge: .leading).combined(with: .opacity)
+                insertion: .opacity.combined(with: .scale(scale: 0.98, anchor: .trailing)),
+                removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .leading))
             )
         case .backward:
             return .asymmetric(
-                insertion: .move(edge: .leading).combined(with: .opacity),
-                removal: .move(edge: .trailing).combined(with: .opacity)
+                insertion: .opacity.combined(with: .scale(scale: 0.98, anchor: .leading)),
+                removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .trailing))
             )
         }
     }
@@ -189,26 +219,79 @@ struct OnboardingFlowView: View {
                 .buttonStyle(SecondaryOnboardingButtonStyle())
             }
 
-            Button {
-                dismissKeyboard()
-                triggerOnboardingHaptic(viewModel.isFinalStep ? .success : .medium)
-                withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
-                    viewModel.handlePrimaryAction()
-                }
-            } label: {
-                if viewModel.isFinalStep {
-                    HStack(spacing: 12) {
-                        Text("👊🏻")
-                        Text("Vamos nessa")
+            if shouldShowContinueButton {
+                Button {
+                    dismissKeyboard()
+                    if viewModel.isFinalStep {
+                        prewarmCommitmentCelebrationAssets()
                     }
+                    triggerOnboardingHaptic(viewModel.isFinalStep ? .success : .medium)
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
+                        viewModel.handlePrimaryAction()
+                    }
+                } label: {
+                    if viewModel.isFinalStep {
+                        HStack(spacing: 12) {
+                            Text("👊🏻")
+                            Text("Vamos nessa")
+                        }
+                    } else {
+                        Text("Continuar")
+                    }
+                }
+                .buttonStyle(PrimaryOnboardingButtonStyle())
+                .disabled(!canProceedInCurrentStep)
+                .opacity(canProceedInCurrentStep ? 1 : 0.45)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var canProceedInCurrentStep: Bool {
+        viewModel.canProceed && (
+            !requiresImmersiveCompletion(for: viewModel.stepIndex) ||
+            immersiveStepCompletion.contains(viewModel.stepIndex)
+        )
+    }
+
+    private var shouldShowContinueButton: Bool {
+        !requiresImmersiveCompletion(for: viewModel.stepIndex) ||
+        immersiveStepCompletion.contains(viewModel.stepIndex)
+    }
+
+    private var headerProgressValue: Double {
+        if requiresImmersiveCompletion(for: viewModel.stepIndex) {
+            return immersiveStepProgress[viewModel.stepIndex] ?? 0
+        }
+
+        return viewModel.progressValue
+    }
+
+    private func requiresImmersiveCompletion(for stepIndex: Int) -> Bool {
+        (1...5).contains(stepIndex)
+    }
+
+    private func immersiveCompletionBinding(for stepIndex: Int) -> Binding<Bool> {
+        Binding(
+            get: { immersiveStepCompletion.contains(stepIndex) },
+            set: { isComplete in
+                if isComplete {
+                    immersiveStepCompletion.insert(stepIndex)
                 } else {
-                    Text("Continuar")
+                    immersiveStepCompletion.remove(stepIndex)
                 }
             }
-            .buttonStyle(PrimaryOnboardingButtonStyle())
-            .disabled(!viewModel.canProceed)
-            .opacity(viewModel.canProceed ? 1 : 0.45)
-        }
+        )
+    }
+
+    private func immersiveProgressBinding(for stepIndex: Int) -> Binding<Double> {
+        Binding(
+            get: { immersiveStepProgress[stepIndex] ?? 0 },
+            set: { progress in
+                immersiveStepProgress[stepIndex] = progress
+            }
+        )
     }
 
     private func dismissKeyboard() {
@@ -258,53 +341,332 @@ private struct Step1HookView: View {
     }
 }
 
-private struct Step2ProblemView: View {
+private let immersiveSceneCoordinateSpace = "immersiveOnboardingScene"
+private let immersiveCardMaxWidth: CGFloat = 360
+
+private struct ImmersiveSceneStep<Content: View>: View {
+    let pageCount: Int
+    @Binding var isComplete: Bool
+    @Binding var progress: Double
+    @ViewBuilder let content: (CGFloat) -> Content
+
     var body: some View {
-        OnboardingStepScroll {
-            Text("Quando você acorda, já vai direto pras redes sociais e nunca lembra orar?")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
+        GeometryReader { proxy in
+            let viewportHeight = proxy.size.height
 
-            Text("Você não está sozinho. As distrações chegam cedo demais e acabam ocupando o lugar da oração.")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.9))
+            ZStack(alignment: .top) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        content(viewportHeight)
+                    }
+                    .scrollTargetLayout()
+                    .frame(maxWidth: .infinity)
+                }
+                .coordinateSpace(name: immersiveSceneCoordinateSpace)
+                .scrollClipDisabled()
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollTargetBehavior(.paging)
+                .onPreferenceChange(ImmersiveSceneBlockFramePreferenceKey.self) { frames in
+                    progress = completionProgress(blockFrames: frames, viewportHeight: viewportHeight)
+                }
 
-            StitchedCard(pose: .hero) {
-                Label("E se toda vez que você pegasse o celular, você só pudesse mexer depois de falar com Deus?", systemImage: "sparkles")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.black)
+                PullDownHintBadge()
+                    .padding(.top, 6)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func completionProgress(
+        blockFrames: [Int: CGRect],
+        viewportHeight: CGFloat
+    ) -> Double {
+        guard pageCount > 1 else { return 1 }
+
+        guard
+            let firstFrame = blockFrames[0],
+            let lastFrame = blockFrames[pageCount - 1]
+        else {
+            return 0
+        }
+
+        let focusPoint = viewportHeight * 0.50
+        let totalDistance = max(firstFrame.midY - lastFrame.midY, 1)
+        let traveledDistance = firstFrame.midY - focusPoint
+        return min(max(traveledDistance / totalDistance, 0), 1)
+    }
+}
+
+private struct ImmersiveSceneBlockFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [Int: CGRect] = [:]
+
+    static func reduce(value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+private struct ImmersiveSceneBlock<Content: View>: View {
+    let index: Int
+    let viewportHeight: CGFloat
+    let minHeightFactor: CGFloat
+    let alignment: Alignment
+    let onFocusLock: (() -> Void)?
+    @ViewBuilder private let content: Content
+    @State private var hasTriggeredFocusLock = false
+
+    init(
+        index: Int,
+        viewportHeight: CGFloat,
+        minHeightFactor: CGFloat = 0.30,
+        alignment: Alignment = .leading,
+        onFocusLock: (() -> Void)? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.index = index
+        self.viewportHeight = viewportHeight
+        self.minHeightFactor = minHeightFactor
+        self.alignment = alignment
+        self.onFocusLock = onFocusLock
+        self.content = content()
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let progress = revealProgress(for: proxy.frame(in: .named(immersiveSceneCoordinateSpace)))
+            let isFocusLocked = progress >= 0.999
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                VStack(spacing: 0) {
+                    content
+                }
+                .frame(maxWidth: .infinity, alignment: horizontalAlignment)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .opacity(0.08 + (progress * 0.92))
+            .blur(radius: 8 * (1 - progress))
+            .scaleEffect(0.97 + (progress * 0.03))
+            .offset(y: 16 * (1 - progress))
+            .animation(.easeOut(duration: 0.16), value: progress)
+            .onAppear {
+                guard isFocusLocked, !hasTriggeredFocusLock else { return }
+                hasTriggeredFocusLock = true
+                onFocusLock?()
+            }
+            .onChange(of: isFocusLocked) { _, locked in
+                guard locked, !hasTriggeredFocusLock else { return }
+                hasTriggeredFocusLock = true
+                onFocusLock?()
+            }
+            .background(
+                Color.clear.preference(
+                    key: ImmersiveSceneBlockFramePreferenceKey.self,
+                    value: [index: proxy.frame(in: .named(immersiveSceneCoordinateSpace))]
+                )
+            )
+        }
+        .frame(minHeight: max(viewportHeight - 12, viewportHeight * max(minHeightFactor, 0.96)))
+        .padding(.vertical, 0)
+    }
+
+    private func revealProgress(for frame: CGRect) -> Double {
+        let focusPoint = viewportHeight * 0.50
+        let distance = abs(frame.midY - focusPoint)
+        let focusDeadZone = viewportHeight * 0.13
+
+        if distance <= focusDeadZone {
+            return 1
+        }
+
+        let normalized = min(
+            max((distance - focusDeadZone) / (viewportHeight * 0.35), 0),
+            1
+        )
+        return pow(1 - normalized, 1.1)
+    }
+
+    private var horizontalAlignment: Alignment {
+        switch alignment {
+        case .center:
+            return .center
+        default:
+            return .leading
+        }
+    }
+}
+
+private struct ImmersiveSceneCopyText: View {
+    let text: String
+    var weight: Font.Weight = .semibold
+    var alignment: TextAlignment = .leading
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 29, weight: weight, design: .rounded))
+            .foregroundStyle(.white.opacity(0.94))
+            .lineSpacing(12)
+            .multilineTextAlignment(alignment)
+            .frame(maxWidth: .infinity, alignment: alignment == .center ? .center : .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct Step2ProblemView: View {
+    @Binding var isComplete: Bool
+    @Binding var progress: Double
+
+    var body: some View {
+        ImmersiveSceneStep(pageCount: 8, isComplete: $isComplete, progress: $progress) { viewportHeight in
+            ImmersiveSceneBlock(index: 0, viewportHeight: viewportHeight, minHeightFactor: 0.20) {
+                ImmersiveSceneCopyText(text: "Todos os meus dias começavam do mesmo jeito.")
+            }
+
+            ImmersiveSceneBlock(index: 1, viewportHeight: viewportHeight, minHeightFactor: 0.22) {
+                ImmersiveSceneCopyText(text: "📱 Eu pegava o celular sem nem pensar. Abria mensagens, via minhas redes sociais e coisas do trabalho.")
+            }
+
+            ImmersiveSceneBlock(index: 2, viewportHeight: viewportHeight, minHeightFactor: 0.22) {
+                ImmersiveSceneCopyText(text: "Quando eu percebia, já tinha visto mil reels e nada de falar com Deus.")
+            }
+
+            ImmersiveSceneBlock(index: 3, viewportHeight: viewportHeight, minHeightFactor: 0.20) {
+                ImmersiveSceneCopyText(text: "🙏 Eu sempre me cobrava, porque o momento da manhã deveria ser meu e de Deus.")
+            }
+
+            ImmersiveSceneBlock(index: 4, viewportHeight: viewportHeight, minHeightFactor: 0.18) {
+                ImmersiveSceneCopyText(text: "E isso pesava muito.", weight: .bold)
+            }
+
+            ImmersiveSceneBlock(index: 5, viewportHeight: viewportHeight, minHeightFactor: 0.20) {
+                ImmersiveSceneCopyText(text: "Todas as noites eu me cobrava e falava que na manhã seguinte ia mudar.")
+            }
+
+            ImmersiveSceneBlock(index: 6, viewportHeight: viewportHeight, minHeightFactor: 0.18) {
+                ImmersiveSceneCopyText(text: "Mas nada mudava...")
+            }
+
+            ImmersiveSceneBlock(
+                index: 7,
+                viewportHeight: viewportHeight,
+                minHeightFactor: 0.26,
+                alignment: .center,
+                onFocusLock: {
+                    guard !isComplete else { return }
+                    isComplete = true
+                    triggerOnboardingHaptic(.light)
+                }
+            ) {
+                StitchedCard(pose: .hero, maxWidth: immersiveCardMaxWidth) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Foi aí que tive a ideia que mudou minha vida. ✨")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(.black)
+
+                        Text("Colocar Deus antes do scroll, pelo menos no primeiro contato do meu dia.")
+                            .font(.system(size: 24, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.black.opacity(0.76))
+                            .lineSpacing(8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
     }
 }
 
 private struct Step3PromiseView: View {
+    @Binding var isComplete: Bool
+    @Binding var progress: Double
+
     var body: some View {
-        OnboardingStepScroll {
-            Text("Seus apps ficam bloqueados até você orar.")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
+        ImmersiveSceneStep(pageCount: 6, isComplete: $isComplete, progress: $progress) { viewportHeight in
+            ImmersiveSceneBlock(index: 0, viewportHeight: viewportHeight, minHeightFactor: 0.20) {
+                ImmersiveSceneCopyText(text: "A ideia que eu tive é bem simples.")
+            }
 
-            Text("Simples assim. Você define o tempo, a gente protege o momento.")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.9))
+            ImmersiveSceneBlock(index: 1, viewportHeight: viewportHeight, minHeightFactor: 0.22) {
+                ImmersiveSceneCopyText(text: "Me dar um espaço real com Deus antes de qualquer coisa.")
+            }
 
-            StitchedCard(pose: .tiltRight) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Como funciona")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.black)
+            ImmersiveSceneBlock(index: 2, viewportHeight: viewportHeight, minHeightFactor: 0.18) {
+                ImmersiveSceneCopyText(text: "⏳ Bloquear todos os apps que poderiam me distrair...", weight: .bold)
+            }
 
-                    OnboardingBullet(icon: "1.circle.fill", text: "Você acorda e todos os apps estão bloqueados.")
-                    OnboardingBullet(icon: "2.circle.fill", text: "Você clica em \"Começar Oração\" e define quanto tempo vai orar.")
-                    OnboardingBullet(icon: "3.circle.fill", text: "Quando terminar, toca uma música e tudo é liberado.")
+            ImmersiveSceneBlock(index: 3, viewportHeight: viewportHeight, minHeightFactor: 0.22) {
+                ImmersiveSceneCopyText(text: "Assim, eu não caía direto no scroll... Minhas manhãs obrigatoriamente começavam com Deus.")
+            }
+
+            ImmersiveSceneBlock(
+                index: 4,
+                viewportHeight: viewportHeight,
+                minHeightFactor: 0.34,
+                alignment: .center
+            ) {
+                StitchedCard(
+                    pose: .centered,
+                    maxWidth: immersiveCardMaxWidth,
+                    contentAlignment: .center
+                ) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("✨ Funciona assim ✨")
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                            .foregroundStyle(.black)
+                            .frame(maxWidth: .infinity, alignment: .center)
+
+                        PremiumTopicRow(
+                            emoji: "🔒",
+                            title: "Apps bloqueados",
+                            subtitle: "Os apps que mais tiram sua atenção continuam fechados logo cedo."
+                        )
+
+                        PremiumTopicRow(
+                            emoji: "⏱️",
+                            title: "Timer de oração",
+                            subtitle: "Você abre o app, inicia o tempo e ora com calma."
+                        )
+
+                        PremiumTopicRow(
+                            emoji: "🎵",
+                            title: "Música ao acabar",
+                            subtitle: "Quando o tempo termina, uma música suave avisa você."
+                        )
+
+                        PremiumTopicRow(
+                            emoji: "🙏",
+                            title: "Seu ritmo de oração",
+                            subtitle: "Se quiser continuar, você segue orando no seu tempo."
+                        )
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
 
-            StitchedCard(pose: .tiltLeft) {
-                Text("Sem distrações. Sem notificações. Só você e Deus primeiro.")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.black)
+            ImmersiveSceneBlock(
+                index: 5,
+                viewportHeight: viewportHeight,
+                minHeightFactor: 0.24,
+                alignment: .center,
+                onFocusLock: {
+                    guard !isComplete else { return }
+                    isComplete = true
+                    triggerOnboardingHaptic(.light)
+                }
+            ) {
+                StitchedCard(pose: .tiltLeft, maxWidth: immersiveCardMaxWidth) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Terminou sua oração? Aí sim, tudo volta ao normal e os apps desbloqueiam.")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(.black)
+
+                        Text("E dessa forma tudo mudou pra mim, e eu espero que mude pra você.")
+                            .font(.system(size: 24, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.black.opacity(0.76))
+                            .lineSpacing(8)
+                    }
+                }
             }
         }
     }
@@ -312,33 +674,52 @@ private struct Step3PromiseView: View {
 
 private struct Step3NameView: View {
     @Binding var data: OnboardingData
+    @Binding var isComplete: Bool
+    @Binding var progress: Double
 
     var body: some View {
-        OnboardingStepScroll {
-            Text("Primeiro: com quem estamos orando?")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
+        ImmersiveSceneStep(pageCount: 3, isComplete: $isComplete, progress: $progress) { viewportHeight in
+            ImmersiveSceneBlock(index: 0, viewportHeight: viewportHeight, minHeightFactor: 0.22) {
+                ImmersiveSceneCopyText(text: "Se isso vai fazer parte da sua rotina, faz sentido ter a sua cara.")
+            }
 
-            Text("Seu nome vai aparecer nos momentos mais importantes da jornada.")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.9))
+            ImmersiveSceneBlock(index: 1, viewportHeight: viewportHeight, minHeightFactor: 0.22) {
+                ImmersiveSceneCopyText(text: "✍️ Coloca seu nome aqui pra personalizar sua experiência.")
+            }
 
-            StitchedCard(pose: .quietRight) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Nome")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.black)
+            ImmersiveSceneBlock(
+                index: 2,
+                viewportHeight: viewportHeight,
+                minHeightFactor: 0.34,
+                alignment: .center,
+                onFocusLock: {
+                    guard !isComplete else { return }
+                    isComplete = true
+                    triggerOnboardingHaptic(.light)
+                }
+            ) {
+                StitchedCard(pose: .quietRight, maxWidth: immersiveCardMaxWidth) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Como você gostaria de ser chamado?")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(.black)
 
-                    TextField("Digite seu nome", text: $data.name)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.black)
-                        .padding(14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.black.opacity(0.05))
-                        )
+                        Text("Pode ser só o primeiro nome. O importante é ficar natural pra você.")
+                            .font(.system(size: 24, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.black.opacity(0.7))
+                            .lineSpacing(8)
+
+                        TextField("Digite seu nome", text: $data.name)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.black)
+                            .padding(14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(Color.black.opacity(0.05))
+                            )
+                    }
                 }
             }
         }
@@ -347,32 +728,63 @@ private struct Step3NameView: View {
 
 private struct Step4AgeView: View {
     @Binding var data: OnboardingData
+    @Binding var isComplete: Bool
+    @Binding var progress: Double
 
     var body: some View {
-        CenteredSelectorStep(question: "🎂 Qual sua idade?") {
-            StitchedCard(pose: .centered) {
-                VStack(spacing: 12) {
-                    Text("Essa resposta é opcional. Serve para adaptar a linguagem e o ritmo da jornada.")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.black.opacity(0.68))
-                        .multilineTextAlignment(.center)
+        ImmersiveSceneStep(pageCount: 3, isComplete: $isComplete, progress: $progress) { viewportHeight in
+            ImmersiveSceneBlock(index: 0, viewportHeight: viewportHeight, minHeightFactor: 0.20) {
+                ImmersiveSceneCopyText(text: "Cada pessoa vive a manhã de um jeito.")
+            }
 
-                    Picker("Idade", selection: $data.ageSelection) {
-                        Text("Opcional")
-                            .tag(0)
+            ImmersiveSceneBlock(index: 1, viewportHeight: viewportHeight, minHeightFactor: 0.22) {
+                ImmersiveSceneCopyText(text: "Saber sua idade ajuda o app a falar com você de um jeito mais certo, mais alinhado com a sua fase.")
+            }
 
-                        ForEach(1...120, id: \.self) { age in
-                            Text("\(age) anos")
-                                .tag(age)
-                        }
-                    }
-                    .pickerStyle(.wheel)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .frame(height: 180)
-                    .clipped()
-                    .environment(\.colorScheme, .light)
+            ImmersiveSceneBlock(
+                index: 2,
+                viewportHeight: viewportHeight,
+                minHeightFactor: 0.42,
+                alignment: .center,
+                onFocusLock: {
+                    guard !isComplete else { return }
+                    isComplete = true
+                    triggerOnboardingHaptic(.light)
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
+            ) {
+                StitchedCard(
+                    pose: .centered,
+                    maxWidth: immersiveCardMaxWidth,
+                    contentAlignment: .center
+                ) {
+                    VStack(spacing: 18) {
+                        Text("🎂 Qual sua idade?")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(.black)
+
+                        Text("É só pra adaptar melhor a experiência ao seu momento.")
+                            .font(.system(size: 24, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.black.opacity(0.68))
+                            .lineSpacing(8)
+                            .multilineTextAlignment(.center)
+
+                        Picker("Idade", selection: $data.ageSelection) {
+                            Text("Opcional")
+                                .tag(0)
+
+                            ForEach(1...120, id: \.self) { age in
+                                Text("\(age) anos")
+                                    .tag(age)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .frame(height: 180)
+                        .clipped()
+                        .environment(\.colorScheme, .light)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
             }
         }
         .onChange(of: data.ageSelection) {
@@ -383,88 +795,135 @@ private struct Step4AgeView: View {
 
 private struct Step5PhoneUsageView: View {
     @ObservedObject var screenTimeAccess: ScreenTimeAccessController
+    @Binding var isComplete: Bool
+    @Binding var progress: Double
     @State private var isConnectAnimating = false
 
     var body: some View {
-        OnboardingStepScroll {
-            Text("Agora vamos puxar seu tempo real oficial do iPhone.")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
+        ImmersiveSceneStep(pageCount: 7, isComplete: $isComplete, progress: $progress) { viewportHeight in
+            ImmersiveSceneBlock(index: 0, viewportHeight: viewportHeight, minHeightFactor: 0.20) {
+                ImmersiveSceneCopyText(text: "Antes de seguir, vale encarar um dado real.")
+            }
 
-            Text("Sem estimativa manual. A gente usa o Screen Time da Apple para mostrar sua média diária real.")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.9))
+            ImmersiveSceneBlock(index: 1, viewportHeight: viewportHeight, minHeightFactor: 0.22) {
+                ImmersiveSceneCopyText(text: "O tempo de tela mostra quanto da sua atenção já está indo pro celular todos os dias.")
+            }
 
-            ZStack {
-                if screenTimeAccess.isAuthorized {
-                    StitchedCard(pose: .hero) {
-                        OfficialScreenTimeReportView()
-                    }
-                    .transition(.asymmetric(insertion: .scale(scale: 0.94).combined(with: .opacity), removal: .opacity))
-                    .onAppear {
-                        screenTimeAccess.beginSnapshotPolling()
-                    }
-                } else {
-                    StitchedCard(pose: .centered) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Conectar Screen Time do iPhone")
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(.black)
+            ImmersiveSceneBlock(index: 2, viewportHeight: viewportHeight, minHeightFactor: 0.18) {
+                ImmersiveSceneCopyText(text: "📱 Às vezes esse número até assusta.", weight: .bold)
+            }
 
-                            Text("Toque para liberar o Screen Time. Sem isso, a próxima etapa e o bloqueio real de apps não podem ser configurados.")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Color.black.opacity(0.68))
+            ImmersiveSceneBlock(index: 3, viewportHeight: viewportHeight, minHeightFactor: 0.22) {
+                ImmersiveSceneCopyText(text: "Mas é justamente ele que ajuda o app a montar o bloqueio do jeito certo pra você, sem exagero e sem chute.")
+            }
 
-                            Button {
-                                triggerOnboardingHaptic(.medium)
-                                withAnimation(.spring(response: 0.26, dampingFraction: 0.62)) {
-                                    isConnectAnimating = true
-                                }
+            ImmersiveSceneBlock(
+                index: 4,
+                viewportHeight: viewportHeight,
+                minHeightFactor: 0.40,
+                alignment: .center
+            ) {
+                ZStack {
+                    if screenTimeAccess.isAuthorized {
+                        StitchedCard(
+                            pose: .centered,
+                            maxWidth: immersiveCardMaxWidth,
+                            contentAlignment: .center
+                        ) {
+                            OfficialScreenTimeReportView()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .transition(.asymmetric(insertion: .scale(scale: 0.94).combined(with: .opacity), removal: .opacity))
+                        .onAppear {
+                            screenTimeAccess.beginSnapshotPolling()
+                        }
+                    } else {
+                        StitchedCard(
+                            pose: .centered,
+                            maxWidth: immersiveCardMaxWidth,
+                            contentAlignment: .center
+                        ) {
+                            VStack(alignment: .center, spacing: 18) {
+                                Text("📲 Conectar tempo de tela ✨")
+                                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.black)
+                                    .multilineTextAlignment(.center)
 
-                                Task {
-                                    await screenTimeAccess.requestAuthorization()
+                                Text("Com esse acesso, o app usa seus dados reais pra preparar o começo do dia de forma mais precisa.")
+                                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(Color.black.opacity(0.68))
+                                    .lineSpacing(8)
+                                    .multilineTextAlignment(.center)
 
-                                    await MainActor.run {
-                                        withAnimation(.spring(response: 0.45, dampingFraction: 0.84)) {
-                                            isConnectAnimating = false
+                                Button {
+                                    triggerOnboardingHaptic(.medium)
+                                    withAnimation(.spring(response: 0.26, dampingFraction: 0.62)) {
+                                        isConnectAnimating = true
+                                    }
+
+                                    Task {
+                                        await screenTimeAccess.requestAuthorization()
+
+                                        await MainActor.run {
+                                            withAnimation(.spring(response: 0.45, dampingFraction: 0.84)) {
+                                                isConnectAnimating = false
+                                            }
                                         }
                                     }
-                                }
-                            } label: {
-                                HStack(spacing: 10) {
-                                    if screenTimeAccess.isRequestingAuthorization {
-                                        ProgressView()
-                                            .tint(.black)
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        if screenTimeAccess.isRequestingAuthorization {
+                                            ProgressView()
+                                                .tint(.black)
+                                        }
+
+                                        Text("Conectar tempo de tela")
+                                            .font(.headline.weight(.semibold))
+                                            .foregroundStyle(.black)
                                     }
-
-                                    Text("Conectar Screen Time")
-                                        .font(.headline.weight(.semibold))
-                                        .foregroundStyle(.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .fill(Color(red: 0.90, green: 0.95, blue: 1.0))
+                                    )
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                        .fill(Color(red: 0.90, green: 0.95, blue: 1.0))
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(screenTimeAccess.isRequestingAuthorization)
-                            .scaleEffect(isConnectAnimating ? 0.95 : 1)
-                            .opacity(isConnectAnimating ? 0.84 : 1)
+                                .buttonStyle(.plain)
+                                .disabled(screenTimeAccess.isRequestingAuthorization)
+                                .scaleEffect(isConnectAnimating ? 0.95 : 1)
+                                .opacity(isConnectAnimating ? 0.84 : 1)
 
-                            if let errorMessage = screenTimeAccess.lastErrorMessage {
-                                Text(errorMessage)
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(Color.red.opacity(0.8))
+                                if let errorMessage = screenTimeAccess.lastErrorMessage {
+                                    Text(errorMessage)
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(Color.red.opacity(0.8))
+                                }
                             }
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
+                        .transition(.asymmetric(insertion: .opacity, removal: .scale(scale: 0.94).combined(with: .opacity)))
                     }
-                    .transition(.asymmetric(insertion: .opacity, removal: .scale(scale: 0.94).combined(with: .opacity)))
                 }
+                .frame(maxWidth: .infinity, minHeight: 212, alignment: .center)
+                .animation(.spring(response: 0.46, dampingFraction: 0.84), value: screenTimeAccess.isAuthorized)
             }
-            .frame(minHeight: 212)
-            .animation(.spring(response: 0.46, dampingFraction: 0.84), value: screenTimeAccess.isAuthorized)
+
+            ImmersiveSceneBlock(index: 5, viewportHeight: viewportHeight, minHeightFactor: 0.18) {
+                ImmersiveSceneCopyText(text: "✨ Na próxima etapa, isso fica mais concreto.", weight: .bold)
+            }
+
+            ImmersiveSceneBlock(
+                index: 6,
+                viewportHeight: viewportHeight,
+                minHeightFactor: 0.20,
+                onFocusLock: {
+                    guard !isComplete else { return }
+                    isComplete = true
+                    triggerOnboardingHaptic(.light)
+                }
+            ) {
+                ImmersiveSceneCopyText(text: "Você vai ver o impacto da tela na sua rotina e entender, com clareza, por que vale proteger esse primeiro momento do dia só pra Deus.")
+            }
         }
         .onChange(of: screenTimeAccess.isAuthorized) {
             if screenTimeAccess.isAuthorized {
@@ -544,13 +1003,9 @@ private struct Step7GoalsView: View {
 
     var body: some View {
         OnboardingStepScroll {
-            Text("O que você quer alcançar com o app?")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
+            OnboardingHeadline("O que você quer alcançar com o app?")
 
-            Text("Escolha uma ou mais respostas. Isso vai personalizar sua experiência.")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.9))
+            OnboardingBodyText("Selecione os seus cards.")
 
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(Array(OnboardingGoal.allCases.enumerated()), id: \.element) { index, goal in
@@ -577,13 +1032,9 @@ private struct Step8VisionView: View {
 
     var body: some View {
         OnboardingStepScroll {
-            Text("Quando você se imagina mais perto de Deus, o que você vê?")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
+            OnboardingHeadline("Quando você se imagina mais perto de Deus, o que você vê?")
 
-            Text("Escreva livremente. Essa visão vira combustível nos dias difíceis.")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.9))
+            OnboardingBodyText("Escreva livremente. Essa visão vira combustível nos dias difíceis.")
 
             StitchedCard(pose: .quietRight) {
                 ZStack(alignment: .topLeading) {
@@ -854,9 +1305,7 @@ private struct Step13ClosingView: View {
 
     var body: some View {
         OnboardingStepScroll {
-            Text("Vamos criar esse compromisso com Deus?")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
+            OnboardingHeadline("Vamos criar esse compromisso com Deus?")
 
             StitchedCard(pose: .tiltLeft) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -899,6 +1348,9 @@ private struct Step13ClosingView: View {
                         .foregroundStyle(Color.black.opacity(0.76))
                 }
             }
+        }
+        .onAppear {
+            prewarmCommitmentCelebrationAssets()
         }
     }
 
@@ -995,6 +1447,7 @@ private struct StoryImpactSequenceView: View {
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
         }
@@ -1003,13 +1456,9 @@ private struct StoryImpactSequenceView: View {
 
     private var storyReport: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("A má notícia é que a tela está ocupando um espaço que deveria ser de Deus.")
-                .font(.system(size: 31, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
+            OnboardingStoryHeadline("A má notícia é que a tela está ocupando um espaço que deveria ser de Deus.")
 
-            Text(badNewsSubtitle)
-                .font(.title3.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.90))
+            OnboardingStoryBody(badNewsSubtitle)
 
             VStack(spacing: 12) {
                 MetricCard(
@@ -1037,9 +1486,7 @@ private struct StoryImpactSequenceView: View {
 
     private var storyMetrics: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Com \(AppBrand.onboardingName), sua manhã volta para Deus primeiro.")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+            OnboardingStoryHeadline("A boa notícia é... Com \(AppBrand.onboardingName), sua manhã volta para Deus primeiro.")
 
             VStack(spacing: 12) {
                 PromiseCard(
@@ -1063,23 +1510,23 @@ private struct StoryImpactSequenceView: View {
     }
 
     private var badNewsSubtitle: String {
-        guard let snapshot else {
-            return "\(name), se alguém passar 8 horas por dia no celular durante um ano, isso vira mais de quatro meses inteiros diante da tela."
+        guard snapshot != nil else {
+            return "\(name), se alguém passar 8 horas por dia no celular durante um ano, isso equivale a cerca de \(annualLossDisplay) diante da tela."
         }
 
-        return "\(name), com sua média atual, isso representa cerca de \(snapshot.annualDaysLost) dias por ano olhando para o celular em vez de buscar a Deus primeiro."
+        return "\(name), com sua média atual, isso equivale a cerca de \(annualLossDisplay) por ano olhando para o celular em vez de buscar a Deus primeiro."
     }
 
     private var badNewsDaysValue: String {
-        guard let snapshot else {
-            return "\(referenceAnnualDaysLost) dias"
-        }
-
-        return "\(snapshot.annualDaysLost) dias"
+        annualLossDisplay
     }
 
     private var badNewsDaysLabel: String {
-        snapshot == nil ? "por ano com 8h por dia" : "por ano com sua média atual"
+        if annualLossDays > 30 {
+            return "equivale a isso por ano"
+        }
+
+        return snapshot == nil ? "por ano com 8h por dia" : "por ano com sua média atual"
     }
 
     private var badNewsDisclaimer: String {
@@ -1087,7 +1534,20 @@ private struct StoryImpactSequenceView: View {
             return "Estimativa de referência: 8 horas por dia durante 365 dias equivalem a cerca de 122 dias por ano diante da tela."
         }
 
-        return "Baseado na média oficial registrada pelo Screen Time da Apple nos dias disponíveis."
+        return "Baseado na média oficial registrada pelo tempo de tela da Apple nos dias disponíveis."
+    }
+
+    private var annualLossDays: Int {
+        snapshot?.annualDaysLost ?? referenceAnnualDaysLost
+    }
+
+    private var annualLossDisplay: String {
+        if annualLossDays > 30 {
+            let months = max(Int((Double(annualLossDays) / 30.0).rounded()), 1)
+            return "\(months) \(months == 1 ? "mês" : "meses")"
+        }
+
+        return "\(annualLossDays) dias"
     }
 
     private var referenceAnnualDaysLost: Int {
@@ -1131,39 +1591,129 @@ private struct StoryProgressRow: View {
     }
 }
 
+private let commitmentCelebrationFistEmoji = "👊🏻"
+private let commitmentCelebrationBurstEmojis = ["✨", "🙏", "📖", "🕊️", "✝️", "💛", "🙌", "☀️", "🔥"]
+
+#if canImport(UIKit)
+@MainActor
+func prewarmCommitmentCelebrationAssets() {
+    CommitmentCelebrationAssetCache.prewarm(
+        fistEmoji: commitmentCelebrationFistEmoji,
+        fistPointSize: 90,
+        burstEmojis: commitmentCelebrationBurstEmojis
+    )
+}
+
+private enum CommitmentCelebrationAssetCache {
+    private static var uiImageCache: [String: UIImage] = [:]
+    private static var cgImageCache: [String: CGImage] = [:]
+
+    static func prewarm(
+        fistEmoji: String,
+        fistPointSize: CGFloat,
+        burstEmojis: [String]
+    ) {
+        _ = uiImage(for: fistEmoji, pointSize: fistPointSize)
+        burstEmojis.forEach { _ = cgImage(for: $0, pointSize: 58) }
+    }
+
+    static func uiImage(for emoji: String, pointSize: CGFloat) -> UIImage {
+        let key = cacheKey(for: emoji, pointSize: pointSize)
+        if let cached = uiImageCache[key] {
+            return cached
+        }
+
+        let image = renderImage(for: emoji, pointSize: pointSize)
+        uiImageCache[key] = image
+
+        if let cgImage = image.cgImage {
+            cgImageCache[key] = cgImage
+        }
+
+        return image
+    }
+
+    static func cgImage(for emoji: String, pointSize: CGFloat) -> CGImage? {
+        let key = cacheKey(for: emoji, pointSize: pointSize)
+        if let cached = cgImageCache[key] {
+            return cached
+        }
+
+        let image = uiImage(for: emoji, pointSize: pointSize)
+        guard let cgImage = image.cgImage else { return nil }
+        cgImageCache[key] = cgImage
+        return cgImage
+    }
+
+    private static func cacheKey(for emoji: String, pointSize: CGFloat) -> String {
+        "\(emoji)-\(Int(pointSize.rounded()))"
+    }
+
+    private static func renderImage(for emoji: String, pointSize: CGFloat) -> UIImage {
+        let font = UIFont.systemFont(ofSize: pointSize)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let textSize = (emoji as NSString).size(withAttributes: attributes)
+        let canvasSize = CGSize(
+            width: max(pointSize * 1.4, textSize.width + 12),
+            height: max(pointSize * 1.4, textSize.height + 12)
+        )
+        let renderer = UIGraphicsImageRenderer(size: canvasSize)
+
+        return renderer.image { _ in
+            let origin = CGPoint(
+                x: (canvasSize.width - textSize.width) / 2,
+                y: (canvasSize.height - textSize.height) / 2
+            )
+            (emoji as NSString).draw(at: origin, withAttributes: attributes)
+        }
+    }
+}
+#else
+func prewarmCommitmentCelebrationAssets() {}
+#endif
+
 struct CommitmentCelebrationView: View {
     let onFinished: () -> Void
 
-    @State private var fistScale = 0.78
+    @State private var fistScale = 0.7
     @State private var fistRotation = -8.0
     @State private var fistOpacity = 1.0
     @State private var overlayOpacity = 1.0
     @State private var showContinueButton = false
     @State private var emitterTrigger = 0
+    @State private var pulse = false
+    @State private var hasStartedSequence = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color.black
-                .opacity(overlayOpacity)
+            OnboardingAssetCache.backgroundImage
+                .resizable()
+                .scaledToFill()
+                .scaleEffect(1.28)
+                .offset(y: -12)
+                .ignoresSafeArea()
+
+            Rectangle()
+                .fill(Color.black.opacity(0.42 * overlayOpacity))
                 .ignoresSafeArea()
 
             ZStack {
                 EmojiBurstEmitterView(
                     trigger: emitterTrigger,
-                    emojis: ["✨", "🙏", "📖", "🕊️", "✝️", "💛", "🙌", "☀️", "🔥"]
+                    emojis: commitmentCelebrationBurstEmojis
                 )
                 .allowsHitTesting(false)
 
-                Text("👊🏻")
-                    .font(.system(size: 72))
-                    .scaleEffect(fistScale)
+                EmojiImage(emoji: commitmentCelebrationFistEmoji, pointSize: 90)
+                    .frame(width: 140, height: 140)
+                    .scaleEffect(fistScale * (pulse ? 1.04 : 1.0))
                     .rotationEffect(.degrees(fistRotation))
                     .opacity(fistOpacity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if showContinueButton {
-                Button("Seguir") {
+                Button("Bora começar 🙌") {
                     triggerOnboardingHaptic(.success)
                     withAnimation(.easeInOut(duration: 0.35)) {
                         fistOpacity = 0
@@ -1177,37 +1727,81 @@ struct CommitmentCelebrationView: View {
                 }
                 .buttonStyle(PrimaryOnboardingButtonStyle())
                 .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .frame(maxWidth: 430)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.bottom, 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .task {
-            triggerOnboardingHaptic(.medium)
+            await startSequenceIfNeeded()
+        }
+    }
 
-            withAnimation(.interactiveSpring(response: 0.72, dampingFraction: 0.66)) {
-                fistScale = 2.25
-                fistRotation = 0
-            }
+    @MainActor
+    private func startSequenceIfNeeded() async {
+        guard !hasStartedSequence else { return }
+        hasStartedSequence = true
 
-            try? await Task.sleep(for: .milliseconds(180))
-            triggerOnboardingHaptic(.selection)
-            try? await Task.sleep(for: .milliseconds(180))
-            triggerOnboardingHaptic(.selection)
-            try? await Task.sleep(for: .milliseconds(180))
-            triggerOnboardingHaptic(.heavy)
+        prewarmCommitmentCelebrationAssets()
 
-            emitterTrigger += 1
-            triggerOnboardingHaptic(.success)
+        // Let the first presentation frame settle before starting the spring.
+        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(120))
+        guard !Task.isCancelled else { return }
 
-            try? await Task.sleep(for: .milliseconds(2200))
-            triggerOnboardingHaptic(.light)
+        triggerOnboardingHaptic(.medium)
 
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
-                showContinueButton = true
-            }
+        withAnimation(.interactiveSpring(response: 0.72, dampingFraction: 0.66)) {
+            fistScale = 1.1
+            fistRotation = 0
+        }
+
+        try? await Task.sleep(for: .milliseconds(180))
+        guard !Task.isCancelled else { return }
+        triggerOnboardingHaptic(.selection)
+
+        try? await Task.sleep(for: .milliseconds(180))
+        guard !Task.isCancelled else { return }
+        triggerOnboardingHaptic(.selection)
+
+        try? await Task.sleep(for: .milliseconds(180))
+        guard !Task.isCancelled else { return }
+        triggerOnboardingHaptic(.heavy)
+
+        try? await Task.sleep(for: .milliseconds(200))
+        guard !Task.isCancelled else { return }
+        emitterTrigger += 1
+        triggerOnboardingHaptic(.success)
+
+        withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
+            pulse = true
+        }
+
+        try? await Task.sleep(for: .milliseconds(2200))
+        guard !Task.isCancelled else { return }
+        triggerOnboardingHaptic(.light)
+
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            showContinueButton = true
         }
     }
 }
+
+#if canImport(UIKit)
+private struct EmojiImage: View {
+    let emoji: String
+    let pointSize: CGFloat
+
+    var body: some View {
+        Image(uiImage: CommitmentCelebrationAssetCache.uiImage(for: emoji, pointSize: pointSize))
+            .renderingMode(.original)
+            .resizable()
+            .interpolation(.high)
+            .antialiased(true)
+    }
+}
+#endif
 
 private struct EmojiBurstEmitterView: UIViewRepresentable {
     let trigger: Int
@@ -1236,7 +1830,6 @@ private struct EmojiBurstEmitterView: UIViewRepresentable {
 #if canImport(UIKit)
 private final class EmojiBurstEmitterHostView: UIView {
     private let emitterLayer = CAEmitterLayer()
-    private static var emojiImageCache: [String: CGImage] = [:]
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1270,7 +1863,7 @@ private final class EmojiBurstEmitterHostView: UIView {
     }
 
     private func makeCell(for emoji: String) -> CAEmitterCell? {
-        guard let image = emojiCGImage(for: emoji) else { return nil }
+        guard let image = CommitmentCelebrationAssetCache.cgImage(for: emoji, pointSize: 58) else { return nil }
 
         let cell = CAEmitterCell()
         cell.contents = image
@@ -1291,30 +1884,6 @@ private final class EmojiBurstEmitterHostView: UIView {
         cell.alphaRange = 0
         cell.alphaSpeed = 0
         return cell
-    }
-
-    private func emojiCGImage(for emoji: String) -> CGImage? {
-        if let cached = Self.emojiImageCache[emoji] {
-            return cached
-        }
-
-        let font = UIFont.systemFont(ofSize: 58)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        let textSize = (emoji as NSString).size(withAttributes: attributes)
-        let canvasSize = CGSize(width: max(72, textSize.width + 12), height: max(72, textSize.height + 12))
-        let renderer = UIGraphicsImageRenderer(size: canvasSize)
-
-        let image = renderer.image { _ in
-            let origin = CGPoint(
-                x: (canvasSize.width - textSize.width) / 2,
-                y: (canvasSize.height - textSize.height) / 2
-            )
-            (emoji as NSString).draw(at: origin, withAttributes: attributes)
-        }
-
-        guard let cgImage = image.cgImage else { return nil }
-        Self.emojiImageCache[emoji] = cgImage
-        return cgImage
     }
 }
 #endif
@@ -1376,9 +1945,22 @@ private struct OnboardingStepScroll<Content: View>: View {
                 content
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 6)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .scrollClipDisabled()
+        .frame(maxWidth: CGFloat.infinity, maxHeight: CGFloat.infinity, alignment: Alignment.topLeading)
+    }
+}
+
+private struct OnboardingLayoutDebugEnabledKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private extension EnvironmentValues {
+    var onboardingLayoutDebugEnabled: Bool {
+        get { self[OnboardingLayoutDebugEnabledKey.self] }
+        set { self[OnboardingLayoutDebugEnabledKey.self] = newValue }
     }
 }
 
@@ -1397,6 +1979,111 @@ private struct StepQuestionText: View {
             .foregroundStyle(.white)
             .multilineTextAlignment(centered ? .center : .leading)
             .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct LayoutDebugModifier: ViewModifier {
+    let enabled: Bool
+    let label: String
+    let color: Color
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.overlay {
+                GeometryReader { proxy in
+                    ZStack(alignment: .topLeading) {
+                        Rectangle()
+                            .stroke(color, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+
+                        Text("\(label) \(Int(proxy.size.width))x\(Int(proxy.size.height))")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(color.opacity(0.9))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .padding(4)
+                    }
+                }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+private extension View {
+    func layoutDebug(_ enabled: Bool, label: String, color: Color) -> some View {
+        modifier(LayoutDebugModifier(enabled: enabled, label: label, color: color))
+    }
+}
+
+private struct OnboardingHeadline: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 32, weight: .heavy, design: .rounded))
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct OnboardingBodyText: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.title3.weight(.medium))
+            .foregroundStyle(Color.white.opacity(0.9))
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct OnboardingStoryHeadline: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 28, weight: .heavy, design: .rounded))
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct OnboardingStoryBody: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.title3.weight(.medium))
+            .foregroundStyle(Color.white.opacity(0.9))
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -1419,7 +2106,7 @@ private struct CenteredSelectorStep<Content: View>: View {
             StepQuestionText(question, centered: true)
 
             content
-                .frame(maxWidth: 420)
+                .frame(maxWidth: .infinity)
 
             Spacer(minLength: 0)
         }
@@ -1438,6 +2125,7 @@ private struct OnboardingBullet: View {
             Text(text)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Color.black.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -1485,6 +2173,66 @@ private struct PromiseCard: View {
             }
             .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         }
+    }
+}
+
+private struct PremiumTopicRow: View {
+    let emoji: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Text(emoji)
+                .font(.title3)
+                .frame(width: 42, height: 42)
+                .background(
+                    Circle()
+                        .fill(Color(red: 0.91, green: 0.95, blue: 1.0))
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.black)
+
+                Text(subtitle)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.black.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.black.opacity(0.04))
+        )
+    }
+}
+
+private struct PullDownHintBadge: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.up")
+                .font(.caption.weight(.bold))
+
+            Text("Puxe para cima")
+                .font(.caption.weight(.semibold))
+        }
+        .foregroundStyle(.white.opacity(0.94))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.black.opacity(0.28))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 6)
     }
 }
 
@@ -1546,7 +2294,6 @@ private struct SelectableOptionCard: View {
                     .stroke(strokeColor, lineWidth: isSelected ? 1.6 : 1.2)
             )
             .shadow(color: Color.black.opacity(shadowOpacity), radius: isSelected ? 12 : 8, x: 0, y: isSelected ? 8 : 4)
-            .scaleEffect(isSelected ? 1.02 : 1)
         }
         .buttonStyle(.plain)
     }
