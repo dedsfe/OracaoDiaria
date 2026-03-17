@@ -12,12 +12,10 @@ import UIKit
 
 struct PrayerIdleHomeView: View {
     var body: some View {
-        GeometryReader { proxy in
-            PrayerWallpaperImage(name: "backgroundhome")
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .background(Color.black)
-                .ignoresSafeArea()
-        }
+        PrayerWallpaperImage(name: "backgroundhome")
+            .background(Color.black)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea()
     }
 }
 
