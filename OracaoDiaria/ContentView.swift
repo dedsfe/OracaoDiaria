@@ -41,6 +41,11 @@ private struct MainTabRoot: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .bottom) {
+                if selectedTab == .orar {
+                    PrayerIdleHomeView()
+                        .allowsHitTesting(false)
+                }
+
                 TabView(selection: $selectedTab) {
                     StreakTabView(store: prayerProgress)
                         .tabItem {
@@ -60,6 +65,7 @@ private struct MainTabRoot: View {
                         }
                         .tag(MainAppTab.friends)
                 }
+                .toolbarBackground(selectedTab == .orar ? .hidden : .visible, for: .tabBar)
 
                 if selectedTab == .orar {
                     PrayerStartAccessoryButton(
@@ -94,7 +100,8 @@ private struct MainTabRoot: View {
 
 private struct PrayerTimerHomeView: View {
     var body: some View {
-        PrayerIdleHomeView()
+        Color.clear
+            .ignoresSafeArea()
     }
 }
 
