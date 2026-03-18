@@ -10,6 +10,33 @@ import Foundation
 
 @MainActor
 final class PrayerProgressStore: ObservableObject {
+    struct WeeklyStreakDay: Identifiable {
+        enum State {
+            case completed
+            case todayCompleted
+            case todayPending
+            case empty
+        }
+
+        let id: String
+        let date: Date
+        let label: String
+        let state: State
+    }
+
+    struct MonthlyPrayerDot: Identifiable {
+        enum State {
+            case hidden
+            case empty
+            case completed
+            case today
+        }
+
+        let id: String
+        let date: Date?
+        let state: State
+    }
+
     private enum DurationBounds {
         static let minimum = 1
         static let maximum = 60
@@ -83,6 +110,40 @@ final class PrayerProgressStore: ObservableObject {
         hasCompletedPrayer(on: Date())
     }
 
+    var currentWeekDays: [WeeklyStreakDay] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let weekdayIndex = (calendar.component(.weekday, from: today) + 5) % 7
+        let startOfWeek = calendar.date(byAdding: .day, value: -weekdayIndex, to: today) ?? today
+        let labels = ["S", "T", "Q", "Q", "S", "S", "D"]
+
+        return labels.enumerated().compactMap { index, label in
+            guard let date = calendar.date(byAdding: .day, value: index, to: startOfWeek) else {
+                return nil
+            }
+
+            let dayKey = Self.dayKey(for: date)
+            let isToday = calendar.isDate(date, inSameDayAs: today)
+            let hasCompleted = completedDayKeys.contains(dayKey)
+
+            let state: WeeklyStreakDay.State
+            if isToday {
+                state = hasCompleted ? .todayCompleted : .todayPending
+            } else if hasCompleted {
+                state = .completed
+            } else {
+                state = .empty
+            }
+
+            return WeeklyStreakDay(
+                id: dayKey,
+                date: date,
+                label: label,
+                state: state
+            )
+        }
+    }
+
     var streakCount: Int {
         let calendar = Calendar.current
         var current = calendar.startOfDay(for: Date())
@@ -131,6 +192,48 @@ final class PrayerProgressStore: ObservableObject {
         }
 
         return Array(repeating: nil, count: leadingSlots) + dates
+    }
+
+    func monthDots(for monthDate: Date) -> [MonthlyPrayerDot] {
+        let calendar = Calendar.current
+        let startOfMonth = calendar.dateInterval(of: .month, for: monthDate)?.start ?? monthDate
+        let dayRange = calendar.range(of: .day, in: .month, for: startOfMonth) ?? 1..<31
+        let firstWeekday = calendar.component(.weekday, from: startOfMonth)
+        let leadingSlots = (firstWeekday + 5) % 7
+        let dates = dayRange.compactMap { day in
+            calendar.date(bySetting: .day, value: day, of: startOfMonth)
+        }
+
+        var dots: [MonthlyPrayerDot] = (0..<leadingSlots).map { index in
+            .init(id: "leading-\(Self.dayKey(for: startOfMonth))-\(index)", date: nil, state: .hidden)
+        }
+
+        dots += dates.map { date in
+            let isToday = calendar.isDateInToday(date)
+            let hasCompleted = hasCompletedPrayer(on: date)
+            
+            let state: MonthlyPrayerDot.State
+            if isToday {
+                state = .today
+            } else if hasCompleted {
+                state = .completed
+            } else {
+                state = .empty
+            }
+
+            return MonthlyPrayerDot(
+                id: Self.dayKey(for: date),
+                date: date,
+                state: state
+            )
+        }
+
+        let trailingSlots = (7 - (dots.count % 7)) % 7
+        dots += (0..<trailingSlots).map { index in
+            .init(id: "trailing-\(Self.dayKey(for: startOfMonth))-\(index)", date: nil, state: .hidden)
+        }
+
+        return dots
     }
 
     var defaultDurationSeconds: Int {

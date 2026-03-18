@@ -5,7 +5,9 @@
 //  Created by André Felipe Farias Gonçalves de Souza on 13/03/26.
 //
 
+import PhotosUI
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
@@ -61,7 +63,7 @@ private struct MainTabRoot: View {
             }
             .toolbarBackground(.visible, for: .tabBar)
 
-            if prayerProgress.showsCompletionPopup {
+            if selectedTab == .orar, prayerProgress.showsCompletionPopup {
                 PrayerCompletionPopup(
                     particleCount: 18,
                     layers: [.midFront, .nearFront]
@@ -81,6 +83,10 @@ private struct MainTabRoot: View {
         }
         .onChange(of: selectedTab) {
             triggerOnboardingHaptic(.selection)
+
+            if selectedTab != .orar, prayerProgress.showsCompletionPopup {
+                prayerProgress.dismissCompletionPopup()
+            }
         }
         .onChange(of: prayerProgress.prayedToday) {
             MorningPrayerBlockController.shared.syncShieldState(
@@ -152,8 +158,13 @@ private struct PrayerTimerHomeView: View {
 }
 
 private struct StreakTabView: View {
+    @AppStorage("savedUserName") private var savedUserName = ""
+    @AppStorage("savedProfileImageData") private var savedProfileImageData = Data()
     @ObservedObject var store: PrayerProgressStore
     @State private var selectedCard: StreakDashboardCard = .top
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedGreenMonthOffset = 0
+    @Namespace private var topCardNamespace
 
     var body: some View {
         GeometryReader { proxy in
@@ -165,7 +176,7 @@ private struct StreakTabView: View {
                     Color.clear
                         .frame(height: visibleHeight(for: .top, in: proxy))
                         .overlay(alignment: .top) {
-                            streakCardView(for: .top)
+                            topCardView(in: proxy)
                                 .frame(height: visibleHeight(for: .top, in: proxy) + topBleed(in: proxy))
                                 .offset(y: -topBleed(in: proxy))
                         }
@@ -187,6 +198,116 @@ private struct StreakTabView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
         }
+        .onChange(of: selectedPhotoItem) {
+            guard let selectedPhotoItem else { return }
+
+            Task {
+                guard
+                    let data = try? await selectedPhotoItem.loadTransferable(type: Data.self),
+                    let image = UIImage(data: data)
+                else { return }
+
+                let resizedData = image.jpegData(compressionQuality: 0.82) ?? data
+
+                await MainActor.run {
+                    savedProfileImageData = resizedData
+                    self.selectedPhotoItem = nil
+                }
+            }
+        }
+    }
+
+    private func topCardView(in proxy: GeometryProxy) -> some View {
+        TopOpenStreakCardShape(bottomCornerRadius: 34)
+            .fill(Color.white)
+            .overlay {
+                GeometryReader { contentProxy in
+                    ZStack(alignment: .topLeading) {
+                        topCardGreeting
+                            .frame(
+                                width: max(contentProxy.size.width - 48, 0),
+                                alignment: isTopCardExpanded ? .leading : .center
+                            )
+                        .position(
+                            x: contentProxy.size.width / 2,
+                            y: isTopCardExpanded
+                                ? topCardGreetingExpandedY(in: proxy)
+                                : topCardGreetingCollapsedY(in: proxy)
+                        )
+
+                        topCardExpandedContent
+                            .frame(width: max(contentProxy.size.width - 48, 0), alignment: .leading)
+                            .padding(.top, topCardExpandedContentTopPadding(in: proxy))
+                            .padding(.horizontal, 24)
+                            .opacity(isTopCardExpanded ? 1 : 0)
+                            .offset(y: isTopCardExpanded ? 0 : -24)
+                            .scaleEffect(isTopCardExpanded ? 1 : 0.96, anchor: .topLeading)
+                    }
+                }
+            }
+            .clipShape(TopOpenStreakCardShape(bottomCornerRadius: 34))
+    }
+
+    private var topCardGreeting: some View {
+        HStack(alignment: .center, spacing: isTopCardExpanded ? 12 : 14) {
+            Text("Olá,")
+                .foregroundStyle(.black)
+
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                profileBadge
+            }
+            .buttonStyle(.plain)
+
+            Text("\(displayName)!")
+                .foregroundStyle(.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+
+            if !isTopCardExpanded {
+                Text(prayerStatusEmoji)
+                    .matchedGeometryEffect(id: "top-card-status-emoji", in: topCardNamespace)
+                    .fixedSize()
+            }
+        }
+        .font(.system(size: greetingFontSize, weight: .bold, design: .rounded))
+        .scaleEffect(isTopCardExpanded ? 1 : 1.02, anchor: .center)
+    }
+
+    private var profileBadge: some View {
+        ZStack {
+            if let profileImage {
+                profileImage
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image("DefaultProfilePhoto")
+                    .resizable()
+                    .scaledToFill()
+            }
+        }
+        .frame(width: profileBadgeSize, height: profileBadgeSize)
+        .clipShape(Circle())
+        .overlay(
+            Circle()
+                .stroke(streakAccentGreen, lineWidth: 3)
+        )
+        .shadow(color: streakAccentGreen.opacity(0.18), radius: 8, x: 0, y: 3)
+        .contentShape(Circle())
+    }
+
+    private var topCardExpandedContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(prayerStatusMessage)
+                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .foregroundStyle(.black.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+
+            PrayerStreakPreview(
+                items: store.currentWeekDays,
+                emojiNamespace: topCardNamespace,
+                showsStatusEmoji: isTopCardExpanded
+            )
+        }
     }
 
     @ViewBuilder
@@ -196,16 +317,71 @@ private struct StreakTabView: View {
             TopOpenStreakCardShape(bottomCornerRadius: 34)
                 .fill(Color.white)
         case .middle:
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(Color(red: 0.80, green: 1.0, blue: 0.08))
+            middleCardView
         case .bottom:
             RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(Color(red: 0.06, green: 0.35, blue: 0.96))
         }
     }
 
+    private var middleCardView: some View {
+        RoundedRectangle(cornerRadius: 32, style: .continuous)
+            .fill(streakAccentGreen)
+            .overlay(alignment: .topLeading) {
+                PrayerMonthCardPager(
+                    store: store,
+                    selectedMonthOffset: $selectedGreenMonthOffset
+                )
+                    .padding(.top, 18)
+                    .padding(.leading, 18)
+                    .padding(.trailing, 18)
+            }
+    }
+
     private func proportion(for card: StreakDashboardCard) -> CGFloat {
         selectedCard == card ? 0.5 : 0.25
+    }
+
+    private var displayName: String {
+        let trimmedName = savedUserName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedName.isEmpty ? "Seu Nome" : trimmedName
+    }
+
+    private var profileImage: Image? {
+        guard
+            !savedProfileImageData.isEmpty,
+            let uiImage = UIImage(data: savedProfileImageData)
+        else {
+            return nil
+        }
+
+        return Image(uiImage: uiImage)
+    }
+
+    private var prayerStatusEmoji: String {
+        store.prayedToday ? "🔥" : "🧊"
+    }
+
+    private var prayerStatusMessage: String {
+        store.prayedToday
+            ? "Que bom que você já falou com Deus hoje!"
+            : "Já está na hora de entrar na presença de Deus."
+    }
+
+    private var greetingFontSize: CGFloat {
+        isTopCardExpanded ? 34 : 44
+    }
+
+    private var profileBadgeSize: CGFloat {
+        isTopCardExpanded ? 38 : 46
+    }
+
+    private var streakAccentGreen: Color {
+        Color(red: 0.80, green: 1.0, blue: 0.08)
+    }
+
+    private var isTopCardExpanded: Bool {
+        selectedCard == .top
     }
 
     private var cardSpacing: CGFloat {
@@ -223,6 +399,18 @@ private struct StreakTabView: View {
 
     private func topBleed(in proxy: GeometryProxy) -> CGFloat {
         proxy.safeAreaInsets.top + 12
+    }
+
+    private func topCardGreetingExpandedY(in proxy: GeometryProxy) -> CGFloat {
+        topBleed(in: proxy) + 90
+    }
+
+    private func topCardGreetingCollapsedY(in proxy: GeometryProxy) -> CGFloat {
+        topBleed(in: proxy) + (visibleHeight(for: .top, in: proxy) * 0.5)
+    }
+
+    private func topCardExpandedContentTopPadding(in proxy: GeometryProxy) -> CGFloat {
+        topBleed(in: proxy) + 118
     }
 
     private func selectCard(_ card: StreakDashboardCard) {
@@ -264,6 +452,257 @@ private enum StreakDashboardCard: CaseIterable, Identifiable {
     case bottom
 
     var id: Self { self }
+}
+
+private struct PrayerStreakPreview: View {
+    let items: [PrayerProgressStore.WeeklyStreakDay]
+    let emojiNamespace: Namespace.ID
+    let showsStatusEmoji: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items) { item in
+                VStack(spacing: 8) {
+                    Text(item.label)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.black.opacity(0.42))
+
+                    dayBadge(for: item.state)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color(red: 0.98, green: 0.95, blue: 0.90))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.black.opacity(0.06), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.035), radius: 12, x: 0, y: 7)
+    }
+
+    @ViewBuilder
+    private func dayBadge(for state: PrayerProgressStore.WeeklyStreakDay.State) -> some View {
+        switch state {
+        case .completed:
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 1.0, green: 0.86, blue: 0.36),
+                            Color(red: 1.0, green: 0.44, blue: 0.21),
+                            Color(red: 0.92, green: 0.18, blue: 0.17)
+                        ],
+                        center: .center,
+                        startRadius: 1,
+                        endRadius: 22
+                    )
+                )
+                .frame(width: 34, height: 34)
+                .overlay(
+                    Text("🔥")
+                        .font(.system(size: 17))
+                )
+                .shadow(color: Color(red: 1.0, green: 0.45, blue: 0.12).opacity(0.24), radius: 10, x: 0, y: 4)
+
+        case .todayCompleted, .todayPending:
+            Circle()
+                .fill(Color.white)
+                .frame(width: 34, height: 34)
+                .overlay(
+                    Circle()
+                        .stroke(statusRingColor(for: state), lineWidth: 2)
+                )
+                .overlay(
+                    Circle()
+                        .fill(statusFillColor(for: state).opacity(0.16))
+                        .padding(5)
+                )
+                .overlay(
+                    Group {
+                        if showsStatusEmoji {
+                            Text(statusEmoji(for: state))
+                                .font(.system(size: 16))
+                                .matchedGeometryEffect(id: "top-card-status-emoji", in: emojiNamespace)
+                        }
+                    }
+                )
+                .shadow(color: statusRingColor(for: state).opacity(0.18), radius: 10, x: 0, y: 4)
+
+        case .empty:
+            Circle()
+                .fill(Color.white.opacity(0.72))
+                .frame(width: 34, height: 34)
+                .overlay(
+                    Circle()
+                        .stroke(Color.black.opacity(0.10), lineWidth: 1.5)
+                )
+        }
+    }
+
+    private func statusEmoji(for state: PrayerProgressStore.WeeklyStreakDay.State) -> String {
+        switch state {
+        case .todayCompleted:
+            return "🔥"
+        case .todayPending:
+            return "🧊"
+        case .completed, .empty:
+            return ""
+        }
+    }
+
+    private func statusRingColor(for state: PrayerProgressStore.WeeklyStreakDay.State) -> Color {
+        switch state {
+        case .todayCompleted:
+            return Color(red: 0.95, green: 0.47, blue: 0.14)
+        case .todayPending:
+            return Color(red: 0.38, green: 0.67, blue: 0.96)
+        case .completed, .empty:
+            return .clear
+        }
+    }
+
+    private func statusFillColor(for state: PrayerProgressStore.WeeklyStreakDay.State) -> Color {
+        switch state {
+        case .todayCompleted:
+            return Color(red: 1.0, green: 0.74, blue: 0.20)
+        case .todayPending:
+            return Color(red: 0.66, green: 0.84, blue: 1.0)
+        case .completed, .empty:
+            return .clear
+        }
+    }
+}
+
+private struct PrayerMonthCardPager: View {
+    @ObservedObject var store: PrayerProgressStore
+    @Binding var selectedMonthOffset: Int
+
+    private let monthOffsets = Array(-6...6)
+
+    var body: some View {
+        TabView(selection: $selectedMonthOffset) {
+            ForEach(monthOffsets, id: \.self) { offset in
+                monthPage(for: offset)
+                    .tag(offset)
+                    .padding(.trailing, 28)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .frame(height: 340)
+    }
+
+    private func monthPage(for offset: Int) -> some View {
+        let monthDate = displayedMonth(for: offset)
+        let isCurrentMonth = offset == 0
+        let dots = store.monthDots(for: monthDate)
+
+        return VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(monthTitle(for: monthDate))
+                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .foregroundStyle(.black)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
+                    Text(yearTitle(for: monthDate))
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(.black.opacity(0.46))
+                }
+
+                if !isCurrentMonth {
+                    Text("🔒")
+                        .font(.system(size: 18))
+                        .padding(.top, 4)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            PrayerMonthDotsGrid(dots: dots)
+        }
+    }
+
+    private func displayedMonth(for offset: Int) -> Date {
+        let calendar = Calendar.current
+        let startOfCurrentMonth = calendar.dateInterval(of: .month, for: Date())?.start ?? Date()
+        return calendar.date(byAdding: .month, value: offset, to: startOfCurrentMonth) ?? startOfCurrentMonth
+    }
+
+    private func monthTitle(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "pt_BR")
+        formatter.dateFormat = "LLLL"
+        return formatter.string(from: date).uppercased()
+    }
+
+    private func yearTitle(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "pt_BR")
+        formatter.dateFormat = "yyyy"
+        return formatter.string(from: date)
+    }
+}
+
+private struct PrayerMonthDotsGrid: View {
+    let dots: [PrayerProgressStore.MonthlyPrayerDot]
+
+    private let weekdays = ["M", "T", "W", "T", "F", "S", "S"]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
+
+    var body: some View {
+        VStack(spacing: 12) {
+            // Weekday labels
+            HStack(spacing: 8) {
+                ForEach(0..<weekdays.count, id: \.self) { index in
+                    Text(weekdays[index])
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.black.opacity(0.3))
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 2)
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(dots) { dot in
+                    monthDot(for: dot.state)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func monthDot(for state: PrayerProgressStore.MonthlyPrayerDot.State) -> some View {
+        let dotSize: CGFloat = 38
+
+        switch state {
+        case .hidden:
+            Circle()
+                .fill(Color.clear)
+                .frame(width: dotSize, height: dotSize)
+
+        case .empty:
+            Circle()
+                .fill(Color.black.opacity(0.12))
+                .frame(width: dotSize, height: dotSize)
+
+        case .completed:
+            Circle()
+                .fill(Color.black)
+                .frame(width: dotSize, height: dotSize)
+
+        case .today:
+            Circle()
+                .fill(Color.orange)
+                .frame(width: dotSize, height: dotSize)
+                .shadow(color: .orange.opacity(0.3), radius: 4, x: 0, y: 2)
+        }
+    }
 }
 
 private struct FriendsTabView: View {
@@ -660,41 +1099,6 @@ private struct PrayerFriendRow: View {
                 .foregroundStyle(.black.opacity(0.62))
         }
     }
-}
-
-private struct PrayerFriend: Identifiable {
-    let id = UUID()
-    let name: String
-    let statusText: String
-    let streak: Int
-    let badgeColor: Color
-
-    var initials: String {
-        let parts = name.split(separator: " ")
-        let letters = parts.prefix(2).compactMap { $0.first }
-        return String(letters)
-    }
-
-    static let samples: [PrayerFriend] = [
-        PrayerFriend(
-            name: "Ana Clara",
-            statusText: "Já fez a oração de hoje e está firme na rotina.",
-            streak: 6,
-            badgeColor: Color(red: 0.26, green: 0.56, blue: 0.42)
-        ),
-        PrayerFriend(
-            name: "Lucas",
-            statusText: "Ainda não apareceu hoje. Vai dar para cutucar depois.",
-            streak: 2,
-            badgeColor: Color(red: 0.86, green: 0.53, blue: 0.18)
-        ),
-        PrayerFriend(
-            name: "Marina",
-            statusText: "Conseguiu manter a manhã protegida mais uma vez.",
-            streak: 11,
-            badgeColor: Color(red: 0.29, green: 0.57, blue: 0.92)
-        ),
-    ]
 }
 
 struct ContentView_Previews: PreviewProvider {
