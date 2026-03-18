@@ -10,12 +10,19 @@ import Foundation
 
 @MainActor
 final class PrayerProgressStore: ObservableObject {
+    private enum DurationBounds {
+        static let minimum = 1
+        static let maximum = 60
+        static let `default` = 60
+    }
+
     private struct PersistedState: Codable {
         var preferredDurationMinutes: Int
         var completedDayKeys: [String]
         var currentRemainingSeconds: Int
         var activeEndDate: Date?
         var awaitingConfirmationDayKey: String?
+        var hasPrayerSessionInProgress: Bool?
     }
 
     private enum Keys {
@@ -27,6 +34,7 @@ final class PrayerProgressStore: ObservableObject {
     @Published private(set) var remainingSeconds: Int
     @Published private(set) var activeEndDate: Date?
     @Published private(set) var awaitingConfirmationDayKey: String?
+    @Published private(set) var hasPrayerSessionInProgress: Bool
     @Published var showsCompletionPopup = false
 
     private let defaults: UserDefaults
@@ -36,11 +44,16 @@ final class PrayerProgressStore: ObservableObject {
         self.defaults = defaults
 
         let state = Self.loadState(from: defaults)
-        preferredDurationMinutes = max(state.preferredDurationMinutes, 1)
+        preferredDurationMinutes = Self.clampedDurationMinutes(state.preferredDurationMinutes)
         completedDayKeys = Set(state.completedDayKeys)
         remainingSeconds = max(state.currentRemainingSeconds, 0)
         activeEndDate = state.activeEndDate
         awaitingConfirmationDayKey = state.awaitingConfirmationDayKey
+        hasPrayerSessionInProgress = state.hasPrayerSessionInProgress ?? (
+            state.activeEndDate != nil
+                || state.awaitingConfirmationDayKey != nil
+                || state.currentRemainingSeconds < (Self.clampedDurationMinutes(state.preferredDurationMinutes) * 60)
+        )
 
         if remainingSeconds == 0, activeEndDate == nil, awaitingConfirmationDayKey == nil {
             remainingSeconds = preferredDurationMinutes * 60
@@ -60,6 +73,10 @@ final class PrayerProgressStore: ObservableObject {
 
     var isAwaitingConfirmation: Bool {
         awaitingConfirmationDayKey != nil
+    }
+
+    var canAdjustDuration: Bool {
+        !isRunning && !isAwaitingConfirmation && remainingSeconds == defaultDurationSeconds
     }
 
     var prayedToday: Bool {
@@ -120,9 +137,16 @@ final class PrayerProgressStore: ObservableObject {
         preferredDurationMinutes * 60
     }
 
+    var countdownProgress: Double {
+        guard defaultDurationSeconds > 0 else { return 0 }
+        let clampedRemaining = min(max(remainingSeconds, 0), defaultDurationSeconds)
+        let progress = 1 - (Double(clampedRemaining) / Double(defaultDurationSeconds))
+        return min(max(progress, 0), 1)
+    }
+
     static func savePreferredDurationMinutes(_ minutes: Int, defaults: UserDefaults = .standard) {
         var state = loadState(from: defaults)
-        state.preferredDurationMinutes = max(minutes, 1)
+        state.preferredDurationMinutes = clampedDurationMinutes(minutes)
 
         if state.activeEndDate == nil && state.awaitingConfirmationDayKey == nil {
             state.currentRemainingSeconds = state.preferredDurationMinutes * 60
@@ -157,19 +181,36 @@ final class PrayerProgressStore: ObservableObject {
         }
     }
 
+    func handleTimerInteraction() {
+        if isAwaitingConfirmation {
+            confirmPrayerCompletion()
+        } else {
+            handlePrimaryAction()
+        }
+    }
+
     func resetPrayer() {
         tickerTask?.cancel()
         activeEndDate = nil
         awaitingConfirmationDayKey = nil
+        hasPrayerSessionInProgress = false
         remainingSeconds = defaultDurationSeconds
+        MorningPrayerBlockController.shared.syncShieldState(
+            prayedToday: prayedToday,
+            isPrayerSessionInProgress: hasPrayerSessionInProgress
+        )
         persist()
     }
 
     func confirmPrayerCompletion() {
         let dayKey = awaitingConfirmationDayKey ?? Self.dayKey(for: Date())
+        // TODO: Persist how many prayer minutes the user completed on each day,
+        // so the streak/history experience can show daily totals.
         completedDayKeys.insert(dayKey)
         awaitingConfirmationDayKey = nil
+        hasPrayerSessionInProgress = false
         remainingSeconds = defaultDurationSeconds
+        MorningPrayerBlockController.shared.unlockAfterPrayerCompletion()
         showsCompletionPopup = true
         persist()
         triggerOnboardingHaptic(.success)
@@ -177,6 +218,15 @@ final class PrayerProgressStore: ObservableObject {
 
     func dismissCompletionPopup() {
         showsCompletionPopup = false
+    }
+
+    func triggerCompletionPopupDebug() {
+        showsCompletionPopup = false
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(60))
+            self?.showsCompletionPopup = true
+        }
     }
 
     func hasCompletedPrayer(on date: Date) -> Bool {
@@ -188,7 +238,7 @@ final class PrayerProgressStore: ObservableObject {
     }
 
     func updatePreferredDurationIfNeeded(_ minutes: Int) {
-        let normalizedMinutes = max(minutes, 1)
+        let normalizedMinutes = Self.clampedDurationMinutes(minutes)
         guard normalizedMinutes != preferredDurationMinutes else { return }
 
         preferredDurationMinutes = normalizedMinutes
@@ -205,7 +255,12 @@ final class PrayerProgressStore: ObservableObject {
             remainingSeconds = defaultDurationSeconds
         }
 
+        hasPrayerSessionInProgress = true
         activeEndDate = Date().addingTimeInterval(TimeInterval(remainingSeconds))
+        MorningPrayerBlockController.shared.syncShieldState(
+            prayedToday: prayedToday,
+            isPrayerSessionInProgress: hasPrayerSessionInProgress
+        )
         persist()
         startTickerIfNeeded()
         triggerOnboardingHaptic(.medium)
@@ -263,7 +318,8 @@ final class PrayerProgressStore: ObservableObject {
             completedDayKeys: Array(completedDayKeys).sorted(),
             currentRemainingSeconds: remainingSeconds,
             activeEndDate: activeEndDate,
-            awaitingConfirmationDayKey: awaitingConfirmationDayKey
+            awaitingConfirmationDayKey: awaitingConfirmationDayKey,
+            hasPrayerSessionInProgress: hasPrayerSessionInProgress
         )
 
         Self.saveState(state, to: defaults)
@@ -275,11 +331,12 @@ final class PrayerProgressStore: ObservableObject {
             let decoded = try? JSONDecoder().decode(PersistedState.self, from: data)
         else {
             return PersistedState(
-                preferredDurationMinutes: 10,
+                preferredDurationMinutes: DurationBounds.default,
                 completedDayKeys: [],
-                currentRemainingSeconds: 10 * 60,
+                currentRemainingSeconds: DurationBounds.default * 60,
                 activeEndDate: nil,
-                awaitingConfirmationDayKey: nil
+                awaitingConfirmationDayKey: nil,
+                hasPrayerSessionInProgress: false
             )
         }
 
@@ -289,6 +346,10 @@ final class PrayerProgressStore: ObservableObject {
     private static func saveState(_ state: PersistedState, to defaults: UserDefaults) {
         guard let encoded = try? JSONEncoder().encode(state) else { return }
         defaults.set(encoded, forKey: Keys.state)
+    }
+
+    private static func clampedDurationMinutes(_ minutes: Int) -> Int {
+        min(max(minutes, DurationBounds.minimum), DurationBounds.maximum)
     }
 
     private static func dayKey(for date: Date) -> String {

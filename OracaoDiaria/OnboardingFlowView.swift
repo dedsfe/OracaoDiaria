@@ -642,6 +642,7 @@ private struct Step3PromiseView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
+                .offset(y: 28)
             }
 
             ImmersiveSceneBlock(

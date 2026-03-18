@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		CFDA10022F65A00100F63D6F /* ScreenTimeReportExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = CFDA10032F65A00100F63D6F /* ScreenTimeReportExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D1A100012F67A00100F63D6F /* MorningPrayerMonitorExtension.appex in Embed Morning Prayer Extension */ = {isa = PBXBuildFile; fileRef = D1A100032F67A00100F63D6F /* MorningPrayerMonitorExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -32,6 +33,13 @@
 			remoteGlobalIDString = CFDA10072F65A00100F63D6F;
 			remoteInfo = ScreenTimeReportExtension;
 		};
+		D1A100022F67A00100F63D6F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CFD1630D2F64F7D600F63D6F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D1A100082F67A00100F63D6F;
+			remoteInfo = MorningPrayerMonitorExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -46,13 +54,25 @@
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D1A1000D2F67A00100F63D6F /* Embed Morning Prayer Extension */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D1A100012F67A00100F63D6F /* MorningPrayerMonitorExtension.appex in Embed Morning Prayer Extension */,
+			);
+			name = "Embed Morning Prayer Extension";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		CFD163152F64F7D600F63D6F /* OracaoDiaria.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OracaoDiaria.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CFD163222F64F7D900F63D6F /* OracaoDiariaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OracaoDiariaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CFD1632C2F64F7D900F63D6F /* OracaoDiariaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OracaoDiariaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		CFDA10032F65A00100F63D6F /* ScreenTimeReportExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = ScreenTimeReportExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CFDA10032F65A00100F63D6F /* ScreenTimeReportExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ScreenTimeReportExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1A100032F67A00100F63D6F /* MorningPrayerMonitorExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = MorningPrayerMonitorExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -74,6 +94,11 @@
 		CFDA10042F65A00100F63D6F /* ScreenTimeReportExtension */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ScreenTimeReportExtension;
+			sourceTree = "<group>";
+		};
+		D1A100042F67A00100F63D6F /* MorningPrayerMonitorExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MorningPrayerMonitorExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -107,6 +132,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D1A100052F67A00100F63D6F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -116,6 +148,7 @@
 				CFD163172F64F7D600F63D6F /* OracaoDiaria */,
 				CFD163252F64F7D900F63D6F /* OracaoDiariaTests */,
 				CFD1632F2F64F7D900F63D6F /* OracaoDiariaUITests */,
+				D1A100042F67A00100F63D6F /* MorningPrayerMonitorExtension */,
 				CFDA10042F65A00100F63D6F /* ScreenTimeReportExtension */,
 				CFD163162F64F7D600F63D6F /* Products */,
 			);
@@ -127,6 +160,7 @@
 				CFD163152F64F7D600F63D6F /* OracaoDiaria.app */,
 				CFD163222F64F7D900F63D6F /* OracaoDiariaTests.xctest */,
 				CFD1632C2F64F7D900F63D6F /* OracaoDiariaUITests.xctest */,
+				D1A100032F67A00100F63D6F /* MorningPrayerMonitorExtension.appex */,
 				CFDA10032F65A00100F63D6F /* ScreenTimeReportExtension.appex */,
 			);
 			name = Products;
@@ -143,10 +177,12 @@
 				CFD163122F64F7D600F63D6F /* Frameworks */,
 				CFD163132F64F7D600F63D6F /* Resources */,
 				CFDA10052F65A00100F63D6F /* Embed App Extensions */,
+				D1A1000D2F67A00100F63D6F /* Embed Morning Prayer Extension */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D1A100092F67A00100F63D6F /* PBXTargetDependency */,
 				CFDA100A2F65A00100F63D6F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
@@ -225,6 +261,28 @@
 			);
 			productName = ScreenTimeReportExtension;
 			productReference = CFDA10032F65A00100F63D6F /* ScreenTimeReportExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		D1A100082F67A00100F63D6F /* MorningPrayerMonitorExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D1A1000C2F67A00100F63D6F /* Build configuration list for PBXNativeTarget "MorningPrayerMonitorExtension" */;
+			buildPhases = (
+				D1A100072F67A00100F63D6F /* Sources */,
+				D1A100052F67A00100F63D6F /* Frameworks */,
+				D1A100062F67A00100F63D6F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D1A100042F67A00100F63D6F /* MorningPrayerMonitorExtension */,
+			);
+			name = MorningPrayerMonitorExtension;
+			packageProductDependencies = (
+			);
+			productName = MorningPrayerMonitorExtension;
+			productReference = D1A100032F67A00100F63D6F /* MorningPrayerMonitorExtension.appex */;
 			productType = "com.apple.product-type.extensionkit-extension";
 		};
 /* End PBXNativeTarget section */
@@ -251,6 +309,9 @@
 					CFDA10072F65A00100F63D6F = {
 						CreatedOnToolsVersion = 26.2;
 					};
+					D1A100082F67A00100F63D6F = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = CFD163102F64F7D600F63D6F /* Build configuration list for PBXProject "OracaoDiaria" */;
@@ -270,6 +331,7 @@
 				CFD163142F64F7D600F63D6F /* OracaoDiaria */,
 				CFD163212F64F7D900F63D6F /* OracaoDiariaTests */,
 				CFD1632B2F64F7D900F63D6F /* OracaoDiariaUITests */,
+				D1A100082F67A00100F63D6F /* MorningPrayerMonitorExtension */,
 				CFDA10072F65A00100F63D6F /* ScreenTimeReportExtension */,
 			);
 		};
@@ -298,6 +360,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		CFDA10082F65A00100F63D6F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1A100062F67A00100F63D6F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -335,6 +404,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D1A100072F67A00100F63D6F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -352,6 +428,11 @@
 			isa = PBXTargetDependency;
 			target = CFDA10072F65A00100F63D6F /* ScreenTimeReportExtension */;
 			targetProxy = CFDA10012F65A00100F63D6F /* PBXContainerItemProxy */;
+		};
+		D1A100092F67A00100F63D6F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D1A100082F67A00100F63D6F /* MorningPrayerMonitorExtension */;
+			targetProxy = D1A100022F67A00100F63D6F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -391,7 +472,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
+				DEVELOPMENT_TEAM = HBR3X34WQP;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -455,7 +536,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
+				DEVELOPMENT_TEAM = HBR3X34WQP;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -488,11 +569,12 @@
 				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Oração Diária";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -521,11 +603,12 @@
 				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Oração Diária";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -549,7 +632,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
+				DEVELOPMENT_TEAM = HBR3X34WQP;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
@@ -571,7 +654,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
+				DEVELOPMENT_TEAM = HBR3X34WQP;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
@@ -592,7 +675,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
+				DEVELOPMENT_TEAM = HBR3X34WQP;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = andresouza.OracaoDiariaUITests;
@@ -612,7 +695,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
+				DEVELOPMENT_TEAM = HBR3X34WQP;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = andresouza.OracaoDiariaUITests;
@@ -649,7 +732,6 @@
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -679,7 +761,64 @@
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D1A1000A2F67A00100F63D6F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = MorningPrayerMonitorExtension/MorningPrayerMonitorExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MorningPrayerMonitorExtensionInfo.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = andresouza.OracaoDiaria.MorningPrayerMonitorExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D1A1000B2F67A00100F63D6F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = MorningPrayerMonitorExtension/MorningPrayerMonitorExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4ZQ8PBTL5U;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MorningPrayerMonitorExtensionInfo.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = andresouza.OracaoDiaria.MorningPrayerMonitorExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -731,6 +870,15 @@
 			buildConfigurations = (
 				CFDA100B2F65A00100F63D6F /* Debug */,
 				CFDA100C2F65A00100F63D6F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D1A1000C2F67A00100F63D6F /* Build configuration list for PBXNativeTarget "MorningPrayerMonitorExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1A1000A2F67A00100F63D6F /* Debug */,
+				D1A1000B2F67A00100F63D6F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

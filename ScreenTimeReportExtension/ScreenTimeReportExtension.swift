@@ -11,6 +11,7 @@ import SwiftUI
 
 @main
 struct ScreenTimeReportExtension: DeviceActivityReportExtension {
+    @MainActor
     var body: some DeviceActivityReportScene {
         OfficialDailyAverageReport { configuration in
             OfficialDailyAverageView(configuration: configuration)

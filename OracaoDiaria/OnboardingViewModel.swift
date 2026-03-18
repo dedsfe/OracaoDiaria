@@ -125,6 +125,11 @@ final class OnboardingViewModel: ObservableObject {
         }
 
         PrayerProgressStore.savePreferredDurationMinutes(data.prayerDurationMinutes)
+        MorningPrayerBlockController.shared.configureBlocking(
+            selection: data.appSelection,
+            wakeUpTime: data.wakeUpTime,
+            reminderLeadMinutes: data.reminderLeadMinutes
+        )
 
         return data.trimmedName
     }
